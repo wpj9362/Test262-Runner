@@ -1,0 +1,8 @@
+/target/
+
+error_summary.txt
+
+.harness_setup_*.mjs
+.harness_test_*.mjs
+.harness_entry_*.mjs
+.harness_test_*.js
