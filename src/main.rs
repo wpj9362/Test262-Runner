@@ -57,7 +57,7 @@ fn main() {
     let harness_dir = "D:\\test262\\test262\\harness";
     
     // 输入目标引擎的名字
-    let engine_cmd_name = "boa"; 
+    let engine_cmd_name ="boa";// "D:\\test262\\js-engine\\target\\release\\js-engine.exe"; 
     
     // 默认关闭stdin，全面启用物理文件模式，保障通用引擎跨平台兼容性
     let use_stdin = false; 
@@ -247,57 +247,57 @@ fn main() {
 
                     match output_result {
                         Ok(output) => {
-                            //退出码不是0则说明崩溃
                             let has_crashed = !output.status.success();
+                            // 预先提取输出，方便后续多次对比
+                            let stderr_str = String::from_utf8_lossy(&output.stderr);
+                            let stdout_str = String::from_utf8_lossy(&output.stdout);
                             
                             let test_passed = if let Some(negative) = &rule.negative {
-                                //处理Negative类型的测试
-                                //提取要求的错误类型
+                                // --- 处理 Negative 类型的测试 ---
                                 let expected_type = negative.error_type.as_deref().unwrap_or("");
-                                
-                                //检测报错的时机
                                 let phase = negative.phase.as_deref().unwrap_or("runtime");
-                                let (matches_type, code_evaluated) = if expected_type.is_empty() && phase != "parse" && phase != "early" {
-                                    (true, false)
-                                } else {
-                                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                                    // 引擎的错误日志需包含expected_type，才算通过
-                                    let matches = expected_type.is_empty() || stderr_str.contains(expected_type) || stdout_str.contains(expected_type);
-                                    
-                                    // 验证引擎是否错误执行了不该执行的代码
-                                    let marker = "Test262: This statement should not be evaluated.";
-                                    let evaluated = stderr_str.contains(marker) || stdout_str.contains(marker);
-                                    
-                                    (matches, evaluated)
-                                };
-                                //若在parse或early报错，引擎必须崩溃且错误类型一致，且不能执行任何其他代码，这样才算通过
+                                
+                                // 核心修改：移除原代码中的 (true, false) 快速返回，统一走严格校验
+                                let matches_type = expected_type.is_empty() || 
+                                                 stderr_str.contains(expected_type) || 
+                                                 stdout_str.contains(expected_type);
+                                
+                                let marker = "Test262: This statement should not be evaluated.";
+                                let code_evaluated = stderr_str.contains(marker) || stdout_str.contains(marker);
+                                
                                 if phase == "parse" || phase == "early" {
+                                    // parse/early 阶段必须：1.引擎崩溃 2.类型匹配 3.禁止执行后面的代码
                                     has_crashed && matches_type && !code_evaluated
                                 } else {
-                                    //runtime阶段报错，则引擎崩溃且报错类型一致才算通过
+                                    // runtime 阶段必须：1.引擎崩溃 2.类型匹配
                                     has_crashed && matches_type
                                 }
                             } else {
-                                //非Negative情形，不崩溃即算通过
-                                !has_crashed
+                                // --- 非 Negative 情形（正向用例） ---
+                                // 核心修改：不仅不能崩溃，stderr 必须没有内容（确保没有未捕获的 JS 异常）
+                                !has_crashed && stderr_str.trim().is_empty()
                             };
 
                             if test_passed {
                                 println!("Result{}: PASS", current_parsed);
                                 passed_count.fetch_add(1, Ordering::SeqCst);
                             } else {
-                                //提取出现报错的文件名，同时能处理遇到乱码的情形，确保程序不崩溃
                                 let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
-                                //拿到引擎具体报错信息，以便后续分析。且同时从stderr和stdout寻找，确保不遗漏
-                                let mut err_msg = String::from_utf8_lossy(&output.stderr).into_owned();
+                                
+                                // 优化报错收集逻辑：优先抓取 stderr，如果 stderr 为空但还是失败了，说明是静默失败
+                                let mut err_msg = stderr_str.into_owned();
                                 if err_msg.trim().is_empty() {
-                                    err_msg = String::from_utf8_lossy(&output.stdout).into_owned();
+                                    if !stdout_str.trim().is_empty() {
+                                        err_msg = stdout_str.into_owned();
+                                    } else if has_crashed {
+                                        err_msg = "Engine crashed with no output (Exit Code != 0)".to_string();
+                                    } else {
+                                        err_msg = "Silent Failure: Exit 0 but might have uncaught stderr or failed assertion".to_string();
+                                    }
                                 }
-                                //在终端输出的报错信息只会显示一行，使得输出简洁
+                                
                                 let short_err = err_msg.lines().next().unwrap_or("Unknown error");
                                 println!("Result{}: FAIL ({})", current_parsed, short_err);
-                                //收集所有报错信息
                                 error_logs.lock().unwrap().push((file_name, err_msg));
                             }
                         }
