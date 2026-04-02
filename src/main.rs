@@ -256,8 +256,6 @@ fn main() {
                                 // 处理 Negative 类型的测试
                                 let expected_type = negative.error_type.as_deref().unwrap_or("");
                                 let phase = negative.phase.as_deref().unwrap_or("runtime");
-                                
-                                // 核心修改：移除原代码中的 (true, false) 快速返回，统一走严格校验
                                 let matches_type = expected_type.is_empty() || 
                                                  stderr_str.contains(expected_type) || 
                                                  stdout_str.contains(expected_type);
