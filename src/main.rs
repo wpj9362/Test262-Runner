@@ -253,7 +253,7 @@ fn main() {
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
                             
                             let test_passed = if let Some(negative) = &rule.negative {
-                                // --- 处理 Negative 类型的测试 ---
+                                // 处理 Negative 类型的测试
                                 let expected_type = negative.error_type.as_deref().unwrap_or("");
                                 let phase = negative.phase.as_deref().unwrap_or("runtime");
                                 
@@ -266,15 +266,15 @@ fn main() {
                                 let code_evaluated = stderr_str.contains(marker) || stdout_str.contains(marker);
                                 
                                 if phase == "parse" || phase == "early" {
-                                    // parse/early 阶段必须：1.引擎崩溃 2.类型匹配 3.禁止执行后面的代码
+                                    // parse/early 阶段必须引擎崩溃、类型匹配、禁止执行后面的代码
                                     has_crashed && matches_type && !code_evaluated
                                 } else {
-                                    // runtime 阶段必须：1.引擎崩溃 2.类型匹配
+                                    // runtime 阶段必须引擎崩溃、类型匹配
                                     has_crashed && matches_type
                                 }
                             } else {
-                                // --- 非 Negative 情形（正向用例） ---
-                                // 核心修改：不仅不能崩溃，stderr 必须没有内容（确保没有未捕获的 JS 异常）
+                                // 非Negative情形
+                                // 核心修改：不仅不能崩溃，stderr 必须没有内容
                                 !has_crashed && stderr_str.trim().is_empty()
                             };
 
@@ -284,7 +284,7 @@ fn main() {
                             } else {
                                 let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
                                 
-                                // 优化报错收集逻辑：优先抓取 stderr，如果 stderr 为空但还是失败了，说明是静默失败
+                                // 优先抓取 stderr，如果stderr为空但还是失败了，说明是静默失败
                                 let mut err_msg = stderr_str.into_owned();
                                 if err_msg.trim().is_empty() {
                                     if !stdout_str.trim().is_empty() {
